@@ -10,28 +10,29 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#define RIP_PORT "520"
-#define BROADCAST_ADDRESS "192.168.232.200"
+#include "super_rip.h"
 
-typedef struct 
-{
+struct rip_network {
     uint16_t ip_family;
     uint16_t padding_1;
     uint32_t ip_address;
     uint32_t padding_2;
     uint32_t padding_3;
     uint32_t metric;
-} rip_network_t;
+};
 
-typedef struct 
-{
+struct rip_packet {
     uint8_t command;
     uint8_t version;
     uint16_t padding_1;
     rip_network_t rip_network;
-} rip_packet_t;
+};
 
-
+// Dummy function to check test suite
+int check_test_function(int number)
+{
+    return ++number;
+}
 
 rip_packet_t *get_hc_rip_packet()
 {
@@ -53,7 +54,7 @@ rip_packet_t *get_hc_rip_packet()
     return rip_update;
 }
 
-int main (void)
+int start_super_rip ()
 {
     int sockfd;
     struct addrinfo hints, *servinfo, *p;
