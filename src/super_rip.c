@@ -12,22 +12,6 @@
 
 #include "super_rip.h"
 
-struct rip_network {
-    uint16_t ip_family;
-    uint16_t padding_1;
-    uint32_t ip_address;
-    uint32_t padding_2;
-    uint32_t padding_3;
-    uint32_t metric;
-};
-
-struct rip_packet {
-    uint8_t command;
-    uint8_t version;
-    uint16_t padding_1;
-    rip_network_t rip_network;
-};
-
 // Dummy function to check test suite
 int check_test_function(int number)
 {
@@ -42,9 +26,12 @@ rip_packet_t *get_hc_rip_packet()
     memset(&rip_network_1, 0, sizeof(rip_network_1));
     rip_update = calloc(1, sizeof(*rip_update));
     
-    rip_network_1.ip_family = 0x0200;      // IPv4
-    rip_network_1.ip_address = 0x0000000a; // 10.0.0.0
-    rip_network_1.metric = 0x01000000;         // 1
+    rip_network_1.ip_family = 0x0002;      // IPv4
+    rip_network_1.ip_family = htons(rip_network_1.ip_family);
+    rip_network_1.ip_address = 0x0a000000; // 10.0.0.0
+    rip_network_1.ip_address = htonl(rip_network_1.ip_address);
+    rip_network_1.metric = 0x00000001;         // 1
+    rip_network_1.metric = htonl(rip_network_1.metric);
 
     rip_update->command = 0x02;             // Response
     rip_update->version = 0x01;             // v1
@@ -52,6 +39,32 @@ rip_packet_t *get_hc_rip_packet()
     rip_update->rip_network = rip_network_1;
 
     return rip_update;
+}
+
+rip_packet_t *get_rip_packet_from_network(char *ip_str, uint32_t metric)
+{
+    rip_network_t rip_network_1;
+    rip_packet_t *rip_update;
+
+    memset(&rip_network_1, 0, sizeof(*rip_update));
+    rip_update = calloc(1, sizeof(*rip_update));
+ 
+    // Populate hardcoded values
+    rip_network_1.ip_family = 0x0002;
+    rip_network_1.ip_family = htons(rip_network_1.ip_family);
+    rip_update->command = 0x02;
+    rip_update->version = 0x01;
+
+    rip_network_1.metric = htonl(metric);
+
+    if (inet_pton(AF_INET, ip_str, &(rip_network_1.ip_address)) <= 0) {
+        perror("Error converting address");
+        exit(1);
+    }
+
+    rip_update->rip_network = rip_network_1;
+    return rip_update;
+
 }
 
 int start_super_rip ()
@@ -102,7 +115,8 @@ int start_super_rip ()
 
     char buf[24];
     int numbytes;
-    rip_packet_t *rip_packet = get_hc_rip_packet();
+//    rip_packet_t *rip_packet = get_hc_rip_packet();
+    rip_packet_t *rip_packet = get_rip_packet_from_network("172.16.0.0", 5);
 
     memcpy(buf, rip_packet, sizeof(*rip_packet));
 
