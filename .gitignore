@@ -60,3 +60,4 @@ Testing/
 CTestTestfile.cmake
 config.h
 README
+.test.log.swp

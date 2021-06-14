@@ -29,6 +29,24 @@ START_TEST(test_check_test_function)
 }
 END_TEST
 
+START_TEST(test_reverse_byte_order)
+{
+    rip_packet_t *rip_packet = get_hc_rip_packet();
+    ck_assert_int_eq(rip_packet->rip_network.ip_address, 0x0000000a);
+}
+END_TEST
+
+START_TEST(test_get_rip_packet_from_network)
+{
+    rip_packet_t *rip_packet = get_rip_packet_from_network("11.0.0.0", 5);
+    ck_assert_int_eq(rip_packet->rip_network.ip_address, 0x0b);
+
+}
+END_TEST
+// TEST string too long
+// TEST string too short
+// TEST invalid characters
+
 // START_TEST(test_money_create)
 // {
 //     ck_assert_int_eq(money_amount(five_dollars), 5);
@@ -71,6 +89,8 @@ Suite * rip_suite(void)
     tcase_add_checked_fixture(tc_core, setup, teardown);
     tcase_add_test(tc_core, test_check_test_function);
     tcase_add_test(tc_core, test_1_equals_1);
+    tcase_add_test(tc_core, test_reverse_byte_order);
+    tcase_add_test(tc_core, test_get_rip_packet_from_network);
     suite_add_tcase(s, tc_core);
 
 //    /* Limits test case */
@@ -92,7 +112,8 @@ int main(void)
     s = rip_suite();
     sr = srunner_create(s);
 
-    srunner_run_all(sr, CK_NORMAL);
+    srunner_set_log (sr, "test.log");
+    srunner_run_all(sr, CK_VERBOSE);
     number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
