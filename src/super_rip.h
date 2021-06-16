@@ -19,12 +19,19 @@ typedef struct rip_packet {
     uint8_t command;
     uint8_t version;
     uint16_t padding_1;
-    rip_network_t rip_network;
+    rip_network_t rip_networks[25];
 } rip_packet_t;
 
+typedef struct rip_header {
+    uint8_t command;
+    uint8_t version;
+    uint16_t padding_1;
+} rip_header_t;
+
+
 int check_test_function(int number);
-rip_packet_t *get_hc_rip_packet();
-rip_packet_t *get_rip_packet_from_network(char *ip_str, uint32_t metric);
+rip_network_t get_rip_network(char *ip_str, uint32_t metric);
+int build_rip_packet(rip_network_t *rip_networks, int num_networks, char **buf);
 int start_super_rip ();
 
 #endif

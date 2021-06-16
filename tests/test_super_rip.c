@@ -29,24 +29,25 @@ START_TEST(test_check_test_function)
 }
 END_TEST
 
-START_TEST(test_reverse_byte_order)
-{
-    rip_packet_t *rip_packet = get_hc_rip_packet();
-    ck_assert_int_eq(rip_packet->rip_network.ip_address, 0x0000000a);
-}
-END_TEST
 
-START_TEST(test_get_rip_packet_from_network)
-{
-    rip_packet_t *rip_packet = get_rip_packet_from_network("11.0.0.0", 5);
-    ck_assert_int_eq(rip_packet->rip_network.ip_address, 0x0b);
-
-}
-END_TEST
 // TEST string too long
 // TEST string too short
 // TEST invalid characters
 
+START_TEST(test_get_rip_network_valid_ipv4_net)
+{
+    rip_network_t rip_network = get_rip_network("172.25.0.0", 10);
+    ck_assert_int_eq(rip_network.metric, 167772160); // Network byte order
+    ck_assert_int_eq(rip_network.ip_address & 0x000000FF, 172);
+    ck_assert_int_eq((rip_network.ip_address & 0x0000FF00) >> 8, 25);
+}
+END_TEST
+
+START_TEST(test_get_rip_network_invalid_ipv4_net)
+{
+    rip_network_t rip_network = get_rip_network("invalid IP", 10);
+}
+END_TEST
 // START_TEST(test_money_create)
 // {
 //     ck_assert_int_eq(money_amount(five_dollars), 5);
@@ -79,7 +80,7 @@ Suite * rip_suite(void)
 {
     Suite *s;
     TCase *tc_core;
-    TCase *tc_limits;
+    TCase *tc_rip_network;
 
     s = suite_create("Super-Rip");
 
@@ -89,16 +90,14 @@ Suite * rip_suite(void)
     tcase_add_checked_fixture(tc_core, setup, teardown);
     tcase_add_test(tc_core, test_check_test_function);
     tcase_add_test(tc_core, test_1_equals_1);
-    tcase_add_test(tc_core, test_reverse_byte_order);
-    tcase_add_test(tc_core, test_get_rip_packet_from_network);
     suite_add_tcase(s, tc_core);
 
-//    /* Limits test case */
-//    tc_limits = tcase_create("Limits");
-//
-//    tcase_add_test(tc_limits, test_money_create_neg);
-//    tcase_add_test(tc_limits, test_money_create_zero);
-//    suite_add_tcase(s, tc_limits);
+    /* RIP Network test cases */
+    tc_rip_network = tcase_create("Rip Network");
+
+    tcase_add_test(tc_rip_network, test_get_rip_network_valid_ipv4_net);
+    tcase_add_exit_test(tc_rip_network, test_get_rip_network_invalid_ipv4_net, 1);
+    suite_add_tcase(s, tc_rip_network);
 
     return s;
 }
