@@ -18,54 +18,45 @@ int check_test_function(int number)
     return ++number;
 }
 
-rip_packet_t *get_hc_rip_packet()
+
+rip_network_t get_rip_network(char *ip_str, uint32_t metric)
 {
     rip_network_t rip_network_1;
-    rip_packet_t *rip_update;
 
-    memset(&rip_network_1, 0, sizeof(rip_network_1));
-    rip_update = calloc(1, sizeof(*rip_update));
-    
-    rip_network_1.ip_family = 0x0002;      // IPv4
-    rip_network_1.ip_family = htons(rip_network_1.ip_family);
-    rip_network_1.ip_address = 0x0a000000; // 10.0.0.0
-    rip_network_1.ip_address = htonl(rip_network_1.ip_address);
-    rip_network_1.metric = 0x00000001;         // 1
-    rip_network_1.metric = htonl(rip_network_1.metric);
-
-    rip_update->command = 0x02;             // Response
-    rip_update->version = 0x01;             // v1
-    
-    rip_update->rip_network = rip_network_1;
-
-    return rip_update;
-}
-
-rip_packet_t *get_rip_packet_from_network(char *ip_str, uint32_t metric)
-{
-    rip_network_t rip_network_1;
-    rip_packet_t *rip_update;
-
-    memset(&rip_network_1, 0, sizeof(*rip_update));
-    rip_update = calloc(1, sizeof(*rip_update));
+    memset(&rip_network_1, 0, sizeof(rip_network_t));
  
     // Populate hardcoded values
     rip_network_1.ip_family = 0x0002;
     rip_network_1.ip_family = htons(rip_network_1.ip_family);
-    rip_update->command = 0x02;
-    rip_update->version = 0x01;
-
     rip_network_1.metric = htonl(metric);
 
     if (inet_pton(AF_INET, ip_str, &(rip_network_1.ip_address)) <= 0) {
         perror("Error converting address");
         exit(1);
     }
-
-    rip_update->rip_network = rip_network_1;
-    return rip_update;
-
+    return rip_network_1;
 }
+
+
+int build_rip_packet(rip_network_t *rip_networks, int num_networks, char **buf)
+{
+    printf("net: %08x\n", rip_networks[1].ip_address);
+    rip_header_t rip_header;
+    memset(&rip_header, 0, sizeof(rip_header));
+    rip_header.command = 0x02;
+    rip_header.version = 0x01;
+
+    *buf = malloc(sizeof(rip_header_t) + num_networks * sizeof(rip_network_t));
+    memcpy(*buf, &rip_header, sizeof(rip_header));
+    int offset = (int)sizeof(rip_header_t);
+    for (int i=0; i<num_networks; ++i) {
+        memcpy(*buf + offset, &rip_networks[i], sizeof(rip_network_t));
+        offset += sizeof(rip_network_t);
+    }
+    return 1;
+    
+}
+
 
 int start_super_rip ()
 {
@@ -113,15 +104,21 @@ int start_super_rip ()
 
     freeaddrinfo(servinfo);
 
-    char buf[24];
+    char *buf;
     int numbytes;
-//    rip_packet_t *rip_packet = get_hc_rip_packet();
-    rip_packet_t *rip_packet = get_rip_packet_from_network("172.16.0.0", 5);
+    rip_network_t *rip_networks = calloc(2, sizeof(rip_network_t));
+    int num_networks = 2;
+    rip_networks[0] = get_rip_network("172.25.0.0", 7);
+    rip_networks[1] = get_rip_network("10.0.0.0", 4);
 
-    memcpy(buf, rip_packet, sizeof(*rip_packet));
+    if (build_rip_packet(rip_networks, num_networks, &buf) != 1) {
+        perror("Error building RIP packet");
+        exit(1);
+    }
+
 
     for (;;) {
-        if ((numbytes = sendto(sockfd, buf, sizeof(buf), 0, bc_info->ai_addr, bc_info->ai_addrlen)) == -1) {
+        if ((numbytes = sendto(sockfd, buf, 44, 0, bc_info->ai_addr, bc_info->ai_addrlen)) == -1) {
             perror("sendto");
             exit(1);
         }
@@ -130,6 +127,7 @@ int start_super_rip ()
         printf("sent %d bytes to %s\n", numbytes, ipstr);
         sleep(30);
     }
+    free(*buf);
 
     return 0;
 }
