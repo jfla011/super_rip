@@ -9,8 +9,22 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <pthread.h>
 
 #include "super_rip.h"
+
+typedef struct {
+    int num_networks; 
+    rip_network_t *rip_networks;
+} thread_config_t;
+
+typedef enum {
+    WAITING_FOR_UPDATE,
+    UPDATE_RIP_DATABASE,
+} DatabaseState;
+
+DatabaseState db_state = UPDATE_RIP_DATABASE;
+
 
 // Dummy function to check test suite
 int check_test_function(int number)
@@ -40,7 +54,6 @@ rip_network_t get_rip_network(char *ip_str, uint32_t metric)
 
 int build_rip_packet(rip_network_t *rip_networks, int num_networks, char **buf)
 {
-    printf("net: %08x\n", rip_networks[1].ip_address);
     rip_header_t rip_header;
     memset(&rip_header, 0, sizeof(rip_header));
     rip_header.command = 0x02;
@@ -58,8 +71,14 @@ int build_rip_packet(rip_network_t *rip_networks, int num_networks, char **buf)
 }
 
 
-int start_super_rip ()
+void* advertise_rip_routes(void *arg)
 {
+    fprintf(stdout, "Starting rip advertise thread.\n");
+    thread_config_t *rip_database = (thread_config_t*)arg;
+    rip_network_t *rip_networks = rip_database->rip_networks;
+    int num_networks = rip_database->num_networks;
+    int update_size = (int)(sizeof(rip_network_t) * num_networks + sizeof(rip_header_t));
+
     int sockfd;
     struct addrinfo hints, *servinfo, *p;
     struct addrinfo *bc_info;
@@ -75,7 +94,7 @@ int start_super_rip ()
 
     if ((rv = getaddrinfo(NULL, RIP_PORT, &hints, &servinfo)) != 0) {
         fprintf(stderr, "gettaddrinfo: %s\n", gai_strerror(rv));
-        return 1;
+        exit(1);
     }
     
     // Set hints to get broadcast addr info
@@ -85,7 +104,7 @@ int start_super_rip ()
 
     if ((rv = getaddrinfo(BROADCAST_ADDRESS, RIP_PORT, &hints, &bc_info)) != 0) {
         fprintf(stderr, "bc_getaddrinfo: %s\n", gai_strerror(rv));
-        return 1;
+        exit(1);
     }
 
     // loop through results and bind to first
@@ -106,10 +125,6 @@ int start_super_rip ()
 
     char *buf;
     int numbytes;
-    rip_network_t *rip_networks = calloc(2, sizeof(rip_network_t));
-    int num_networks = 2;
-    rip_networks[0] = get_rip_network("172.25.0.0", 7);
-    rip_networks[1] = get_rip_network("10.0.0.0", 4);
 
     if (build_rip_packet(rip_networks, num_networks, &buf) != 1) {
         perror("Error building RIP packet");
@@ -117,8 +132,8 @@ int start_super_rip ()
     }
 
 
-    for (;;) {
-        if ((numbytes = sendto(sockfd, buf, 44, 0, bc_info->ai_addr, bc_info->ai_addrlen)) == -1) {
+    while (db_state == WAITING_FOR_UPDATE) {
+        if ((numbytes = sendto(sockfd, buf, update_size, 0, bc_info->ai_addr, bc_info->ai_addrlen)) == -1) {
             perror("sendto");
             exit(1);
         }
@@ -127,7 +142,63 @@ int start_super_rip ()
         printf("sent %d bytes to %s\n", numbytes, ipstr);
         sleep(30);
     }
-    free(*buf);
+    free(buf);
+    fprintf(stdout, "Exiting rip advertise thread.\n");
 
     return 0;
+}
+
+int start_super_rip ()
+{
+    fprintf(stdout, "Starting super_rip.\n");
+    pthread_t rip_advertise_thread;
+    
+    rip_network_t *new_rip_networks;
+    rip_network_t *rip_networks = calloc(2, sizeof(rip_network_t));
+    rip_networks[0] = get_rip_network("172.25.0.0", 7);
+    rip_networks[1] = get_rip_network("10.0.0.0", 4);
+    
+    thread_config_t *rip_database = (thread_config_t*)malloc(sizeof(*rip_database));
+    if (!rip_database) {
+        perror("OOM");
+        exit(1);
+    }
+    rip_database->num_networks = 2;
+    rip_database->rip_networks = rip_networks;
+//    free(rip_networks);
+
+    char command[128];
+    memset(command, 0, sizeof command);
+    for (;;) {
+        if (db_state == WAITING_FOR_UPDATE) {
+            fgets(command, 128, stdin);
+            fprintf(stdout, "Received: %s\n", command);
+            if (strcmp(command, "quit\n") == 0) {
+                fprintf(stdout, "Shutting down super_rip.\n");
+                break;
+            } else if (strcmp(command, "add rip network 203.98.111.0 metric 6\n") == 0) {
+                fprintf(stdout, "Adding route to database\n");
+                new_rip_networks = calloc(rip_database->num_networks+1, sizeof(rip_network_t));
+                for (int i=0; i<rip_database->num_networks; ++i) {
+                    new_rip_networks[i] = rip_database->rip_networks[i];
+                }
+                new_rip_networks[rip_database->num_networks] = get_rip_network("203.98.111.0", 6);
+                rip_database->num_networks ++;
+                rip_networks = new_rip_networks;
+//                free(new_rip_networks);
+                rip_database->rip_networks = rip_networks;
+                db_state = UPDATE_RIP_DATABASE;
+                pthread_join(rip_advertise_thread, NULL);
+            }
+        } else if (db_state == UPDATE_RIP_DATABASE) {
+            db_state = WAITING_FOR_UPDATE;
+            pthread_create(&rip_advertise_thread, NULL, advertise_rip_routes, rip_database);
+            
+        }
+
+    }
+    free(rip_database);
+    pthread_detach(rip_advertise_thread);
+    return 0;
+
 }
