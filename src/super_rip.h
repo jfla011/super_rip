@@ -32,6 +32,7 @@ typedef struct rip_header {
 int check_test_function(int number);
 rip_network_t get_rip_network(char *ip_str, uint32_t metric);
 int build_rip_packet(rip_network_t *rip_networks, int num_networks, char **buf);
+void *advertise_rip_routes(void *arg);
 int start_super_rip ();
 
 #endif
