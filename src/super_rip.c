@@ -148,6 +148,34 @@ void* advertise_rip_routes(void *arg)
     return 0;
 }
 
+
+int parse_command(char *command)
+{
+    /*
+    * RETURN VALUES:
+    *    0: Command recognised successfully
+    *    1: Invalid command
+    */
+    char *new_str;
+    strcpy(new_str, command);
+    const char *delim = " ";
+    char *next;
+
+    if (strcmp(new_str, "quit") == 0) {
+        fprintf(stdout, "Received exit symbol, shutting down.");
+        exit(0);
+    } else if (strcmp(strtok(new_str, delim), "ip") == 0) {
+        if (strcmp(strtok(new_str, delim), "rip") == 0) {
+            fprintf(stdout, "%s\n", new_str);
+            return 0;
+        }
+
+    }
+
+    fprintf(stdout, "Invalid command received.");
+    return 1;
+}
+
 int start_super_rip ()
 {
     fprintf(stdout, "Starting super_rip.\n");

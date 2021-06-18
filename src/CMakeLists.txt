@@ -11,10 +11,12 @@ set(HEADERS
   super_rip.h
 )
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
 add_library(super_rip STATIC ${LIB_SOURCES} ${HEADERS})
 
 add_executable(main ${HEADERS} ${MAIN_SOURCES})
-target_link_libraries(main super_rip)
+target_link_libraries(main super_rip ${CMAKE_THREAD_LIBS_INIT})
 
 install(TARGETS super_rip
   RUNTIME DESTINATION bin
