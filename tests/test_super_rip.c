@@ -48,6 +48,28 @@ START_TEST(test_get_rip_network_invalid_ipv4_net)
     rip_network_t rip_network = get_rip_network("invalid IP", 10);
 }
 END_TEST
+
+START_TEST(test_parse_command)
+{
+    char *command_ref= "";
+    char *bad_command = "bad command";
+    ck_assert_int_eq(parse_command(bad_command, strlen(bad_command)), -1);
+    char *command_test_1 = "ip rip add network 192.168.1.0\n";
+    ck_assert_int_eq(parse_command(command_test_1, strlen(command_test_1)), 1);
+    char *command_test_2 = "ip rip add network 203.123.213.0 5\n";
+    ck_assert_int_eq(parse_command(command_test_2, strlen(command_test_2)), 1);
+    char *command_test_3 = "ip rip add network 203.7890.789.7 5\n";
+    ck_assert_int_eq(parse_command(command_test_3, strlen(command_test_3)), 2);
+       
+}
+END_TEST
+
+START_TEST(test_quit_command)
+{
+    char *command_test = "quit\n";
+    parse_command(command_test, strlen(command_test));
+}
+END_TEST
 // START_TEST(test_money_create)
 // {
 //     ck_assert_int_eq(money_amount(five_dollars), 5);
@@ -81,6 +103,7 @@ Suite * rip_suite(void)
     Suite *s;
     TCase *tc_core;
     TCase *tc_rip_network;
+    TCase *tc_command;
 
     s = suite_create("Super-Rip");
 
@@ -98,6 +121,14 @@ Suite * rip_suite(void)
     tcase_add_test(tc_rip_network, test_get_rip_network_valid_ipv4_net);
     tcase_add_exit_test(tc_rip_network, test_get_rip_network_invalid_ipv4_net, 1);
     suite_add_tcase(s, tc_rip_network);
+
+    /* CLI Related test cases */
+    tc_command = tcase_create("Command");
+    
+    tcase_add_test(tc_command, test_parse_command);
+    tcase_add_exit_test(tc_command, test_quit_command, 0);
+    suite_add_tcase(s, tc_command);
+
 
     return s;
 }
