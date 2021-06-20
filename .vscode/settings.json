@@ -42,6 +42,8 @@
         "**/Testing/": true,
         "**/CTestTestfile.cmake": true,
         "**/config.h": true,
-        "**/README": true
-    }
+        "**/README": true,
+        "**/.test.log.swp": true
+    },
+    "cmake.configureOnOpen": false
 }

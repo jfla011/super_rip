@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <pthread.h>
+#include <regex.h>
 
 #include "super_rip.h"
 
@@ -24,6 +25,8 @@ typedef enum {
 } DatabaseState;
 
 DatabaseState db_state = UPDATE_RIP_DATABASE;
+rip_network_t *rip_networks;
+thread_config_t *rip_database;
 
 
 // Dummy function to check test suite
@@ -149,75 +152,120 @@ void* advertise_rip_routes(void *arg)
 }
 
 
-int parse_command(char *command)
+int parse_command(char *command, size_t command_len)
 {
     /*
     * RETURN VALUES:
+    *   -1: Invalid Command
     *    0: Command recognised successfully
-    *    1: Invalid command
+    *    1: Command recognised successfully rip db updated
+    *    2: Invalid IP address
+    *    3: Could not convert IP with inet_pton()
     */
-    char *new_str;
-    strcpy(new_str, command);
-    const char *delim = " ";
-    char *next;
 
-    if (strcmp(new_str, "quit") == 0) {
-        fprintf(stdout, "Received exit symbol, shutting down.");
+    regex_t compiled_expression;
+    
+    if (strcmp(command, "quit\n") == 0) {
+        fprintf(stdout, "Shutting down super_rip.\n");
         exit(0);
-    } else if (strcmp(strtok(new_str, delim), "ip") == 0) {
-        if (strcmp(strtok(new_str, delim), "rip") == 0) {
-            fprintf(stdout, "%s\n", new_str);
-            return 0;
-        }
-
     }
 
-    fprintf(stdout, "Invalid command received.");
-    return 1;
+    char cmd_arr[command_len];
+    strcpy(cmd_arr, command);
+
+    char *add_network = "ip rip add network";
+    if (strncmp(cmd_arr, add_network, strlen(add_network)) == 0 ) {
+        char *ip = strtok(cmd_arr, add_network);
+        if (ip != NULL){
+            ip[strcspn(ip,"\n")] = 0; // Trim newline character
+            char *delim = " \n";
+            char *metric_str = strtok(NULL, delim);
+            uint32_t metric;
+            if (metric_str == NULL) {
+                metric = 1; // If no metric supplied set to 1
+            } else {
+                metric = strtol(metric_str, NULL, 10);
+            }
+            fprintf(stdout, "metric: %i\n", metric);
+            char *reg_ex = "[[:digit:]]{1,3}\\.[[:digit:]]{1,3}\\.[[:digit:]]{1,3}\\.0";
+            if (regcomp(&compiled_expression, reg_ex, REG_EXTENDED) != 0) {
+                perror("ERROR compiling regex 1");
+                exit(1);
+            }
+
+            if (regexec(&compiled_expression, ip, 0, NULL, 0) == REG_NOMATCH) {
+                fprintf(stdout, "Invalid Network address: %s\n", ip);
+                return 2;
+            }
+
+            struct sockaddr_in sa;
+            if (inet_pton(AF_INET, ip, &(sa.sin_addr)) == 0) {
+                fprintf(stdout, "Invalid Network address: %s\n", ip);
+                return 3;
+            }
+            fprintf(stdout, "Adding route to database\n");
+            rip_network_t *new_rip_networks;
+            new_rip_networks = calloc(rip_database->num_networks+1, sizeof(rip_network_t));
+            for (int i=0; i<rip_database->num_networks; ++i) {
+                new_rip_networks[i] = rip_database->rip_networks[i];
+            }
+            new_rip_networks[rip_database->num_networks] = get_rip_network(ip, metric);
+            rip_database->num_networks ++;
+            rip_networks = new_rip_networks;
+            rip_database->rip_networks = rip_networks;
+            db_state = UPDATE_RIP_DATABASE;
+
+
+            return 1;
+        }
+    }
+    char *show_network = "show ip rip networks";
+    if (strncmp(cmd_arr, show_network, strlen(show_network)) == 0 ) {
+        for (int i=0; i<rip_database->num_networks; ++i) {
+            struct sockaddr_in ip_addr;
+            ip_addr.sin_addr.s_addr = rip_database->rip_networks[i].ip_address;
+            char ipstr[INET6_ADDRSTRLEN];
+
+            inet_ntop(AF_INET, &ip_addr.sin_addr, ipstr, sizeof ipstr);
+            fprintf(stdout, "Net %i: %s metric %i\n", i+1, ipstr, ntohl(rip_database->rip_networks[i].metric));
+        }
+        return 0;
+    }
+
+    fprintf(stdout, "Invalid command received.\n");
+    return -1;
 }
 
+    
 int start_super_rip ()
 {
     fprintf(stdout, "Starting super_rip.\n");
     pthread_t rip_advertise_thread;
     
-    rip_network_t *new_rip_networks;
-    rip_network_t *rip_networks = calloc(2, sizeof(rip_network_t));
+    // Initial RIP DB setup. Should be removed from this function
+    rip_networks = calloc(2, sizeof(rip_network_t));
     rip_networks[0] = get_rip_network("172.25.0.0", 7);
     rip_networks[1] = get_rip_network("10.0.0.0", 4);
     
-    thread_config_t *rip_database = (thread_config_t*)malloc(sizeof(*rip_database));
+    rip_database = (thread_config_t*)malloc(sizeof(*rip_database));
     if (!rip_database) {
         perror("OOM");
         exit(1);
     }
     rip_database->num_networks = 2;
     rip_database->rip_networks = rip_networks;
-//    free(rip_networks);
 
     char command[128];
     memset(command, 0, sizeof command);
     for (;;) {
         if (db_state == WAITING_FOR_UPDATE) {
             fgets(command, 128, stdin);
-            fprintf(stdout, "Received: %s\n", command);
-            if (strcmp(command, "quit\n") == 0) {
-                fprintf(stdout, "Shutting down super_rip.\n");
-                break;
-            } else if (strcmp(command, "add rip network 203.98.111.0 metric 6\n") == 0) {
-                fprintf(stdout, "Adding route to database\n");
-                new_rip_networks = calloc(rip_database->num_networks+1, sizeof(rip_network_t));
-                for (int i=0; i<rip_database->num_networks; ++i) {
-                    new_rip_networks[i] = rip_database->rip_networks[i];
-                }
-                new_rip_networks[rip_database->num_networks] = get_rip_network("203.98.111.0", 6);
-                rip_database->num_networks ++;
-                rip_networks = new_rip_networks;
-//                free(new_rip_networks);
-                rip_database->rip_networks = rip_networks;
-                db_state = UPDATE_RIP_DATABASE;
+            fprintf(stdout, "Received %lu chars: %s\n", strlen(command), command);
+            if (parse_command(command, strlen(command)) == 1) {
                 pthread_join(rip_advertise_thread, NULL);
             }
+
+            
         } else if (db_state == UPDATE_RIP_DATABASE) {
             db_state = WAITING_FOR_UPDATE;
             pthread_create(&rip_advertise_thread, NULL, advertise_rip_routes, rip_database);

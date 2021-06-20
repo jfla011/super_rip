@@ -2,6 +2,7 @@
 #define __SUPER_RIP_H__
 
 #include <stdint.h>
+#include <stdlib.h>
 
 #define RIP_PORT "520"
 #define BROADCAST_ADDRESS "192.168.232.200"
@@ -33,7 +34,7 @@ int check_test_function(int number);
 rip_network_t get_rip_network(char *ip_str, uint32_t metric);
 int build_rip_packet(rip_network_t *rip_networks, int num_networks, char **buf);
 void *advertise_rip_routes(void *arg);
-int parse_command(char *command);
+int parse_command(char *command, size_t command_len);
 int start_super_rip ();
 
 #endif

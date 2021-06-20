@@ -3,6 +3,7 @@ Running suite Super-Rip
 /home/jason/proj/super_rip/tests/test_super_rip.c:19:P:Core:test_1_equals_1:0: Passed
 /home/jason/proj/super_rip/tests/test_super_rip.c:42:P:Rip Network:test_get_rip_network_valid_ipv4_net:0: Passed
 /home/jason/proj/super_rip/tests/test_super_rip.c:46:P:Rip Network:test_get_rip_network_invalid_ipv4_net:0: Passed
-/home/jason/proj/super_rip/tests/test_super_rip.c:60:F:Command:test_parse_command:0: Assertion 'parse_command(command_test) == 0' failed: parse_command(command_test) == 1, 0 == 0
+/home/jason/proj/super_rip/tests/test_super_rip.c:56:E:Command:test_parse_command:0: (after this point) Received signal 11 (Segmentation fault)
+/home/jason/proj/super_rip/tests/test_super_rip.c:67:P:Command:test_quit_command:0: Passed
 Results for all suites run:
-80%: Checks: 5, Failures: 1, Errors: 0
+83%: Checks: 6, Failures: 0, Errors: 1

@@ -52,16 +52,22 @@ END_TEST
 START_TEST(test_parse_command)
 {
     char *command_ref= "";
-    char *command_test = "ip";
-    ck_assert_int_eq(parse_command(command_test), 1);
-    command_test = "foo";
-    ck_assert_int_eq(parse_command(command_test), 1);
-    command_test = "ip rip";
-    ck_assert_int_eq(parse_command(command_test), 0);
-    command_test = "ip rop";
-    ck_assert_int_eq(parse_command(command_test), 1);
-    
-    
+    char *bad_command = "bad command";
+    ck_assert_int_eq(parse_command(bad_command, strlen(bad_command)), -1);
+    char *command_test_1 = "ip rip add network 192.168.1.0\n";
+    ck_assert_int_eq(parse_command(command_test_1, strlen(command_test_1)), 1);
+    char *command_test_2 = "ip rip add network 203.123.213.0 5\n";
+    ck_assert_int_eq(parse_command(command_test_2, strlen(command_test_2)), 1);
+    char *command_test_3 = "ip rip add network 203.7890.789.7 5\n";
+    ck_assert_int_eq(parse_command(command_test_3, strlen(command_test_3)), 2);
+       
+}
+END_TEST
+
+START_TEST(test_quit_command)
+{
+    char *command_test = "quit\n";
+    parse_command(command_test, strlen(command_test));
 }
 END_TEST
 // START_TEST(test_money_create)
@@ -120,6 +126,7 @@ Suite * rip_suite(void)
     tc_command = tcase_create("Command");
     
     tcase_add_test(tc_command, test_parse_command);
+    tcase_add_exit_test(tc_command, test_quit_command, 0);
     suite_add_tcase(s, tc_command);
 
 
